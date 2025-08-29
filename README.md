@@ -1,4 +1,4 @@
-# Pantry Common Lisp Client
+# `pantry`
 
 A Common Lisp client library for the [Pantry JSON storage
 service](https://getpantry.cloud), providing simple cloud-based JSON
