@@ -170,7 +170,7 @@ The library defines custom conditions for error handling:
 ## Example: Simple Key-Value Store
 
 ```lisp
-(defparameter *storage* (pantry:make-pantry-client "your-pantry-id"))
+(defparameter *storage* (pantry:make-pantry-client :pantry-id "your-pantry-id"))
 
 ;; Inspect the client structure
 (pantry:pantry-client-pantry-id *storage*)     ;; => "your-pantry-id"
