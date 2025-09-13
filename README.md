@@ -4,14 +4,29 @@ A Common Lisp client library for the [Pantry JSON storage
 service](https://getpantry.cloud), providing simple cloud-based JSON
 storage for small projects and prototypes.
 
+## Example: Simple Key-Value Store
+
+```lisp
+(defparameter *storage* (pantry:make-pantry-client :pantry-id "your-pantry-id"))
+
+(defun store-value (key value)
+  (pantry:create-basket *storage* key
+                        `((value . ,value)
+                          (timestamp . ,(get-universal-time)))))
+
+(defun get-value (key)
+  (let ((ht (pantry:get-basket *storage* key)))
+    (gethash "value" ht)))
+
+;; Usage
+(store-value "user-preferences" '((theme . "dark") (lang . "en")))
+(get-value "user-preferences")
+```
+
 ## Features
 
-- Simple API for storing and retrieving JSON data
-- Support for multiple "baskets" within a pantry
-- Lightweight struct-based client
-- Built-in error handling with custom conditions
-- Uses `dexador` for HTTP requests and `jonathan` for JSON parsing
-- No authentication required - just use your pantry ID
+- Flexible JSON input: pass alists, plists, hash-tables, lists, or vectors
+- Responses parsed to native types (hash-tables for objects, vectors/lists for arrays)
 
 ## Installation
 
@@ -34,18 +49,13 @@ storage for small projects and prototypes.
 
 **Option B: Manual loading**
 ```lisp
-(load "/path/to/pantry/package.lisp")
+;; Single-file system: just load pantry.lisp
 (load "/path/to/pantry/pantry.lisp")
 ```
 
 ### 3. Get Your Pantry ID
 
 Visit [getpantry.cloud](https://getpantry.cloud) to get your free pantry ID.
-
-## Dependencies
-
-- `dexador` - HTTP client
-- `jonathan` - JSON parser
 
 ## Usage
 
@@ -62,13 +72,10 @@ Get information about your pantry, including available baskets:
 
 ```lisp
 (pantry:get-pantry-details *client*)
-;; Returns:
-;; (("name" . "My Pantry")
-;;  ("description" . "Storage for my app")
-;;  ("errors" . #())
-;;  ("notifications" . t)
-;;  ("percentFull" . 1)
-;;  ("baskets" . ((("name" . "user-data") ("ttl" . 258915)))))
+;; => a hash-table mapping string keys to values
+;; Example access:
+(let ((details (pantry:get-pantry-details *client*)))
+  (gethash "baskets" details))
 ```
 
 #### Update Pantry Details
@@ -86,12 +93,45 @@ Update your pantry's name and description:
 Store JSON data in a named basket:
 
 ```lisp
-(pantry:create-basket *client* "user-settings"
+CL-USER> (pantry:create-basket *client* "user-settings"
                       '(("theme" . "dark")
                         ("language" . "en")
                         ("notifications" . t)
                         ("user-id" . 12345)))
-;; Returns: "Your Pantry was updated with basket: user-settings!"
+"Your Pantry was updated with basket: user-settings!"
+```
+
+You can now pass many common Lisp shapes and they’ll be normalized to
+JSON automatically. Basket payloads must be JSON objects; if you pass
+a non-object (like a list or vector), it is wrapped as {"value": ...}
+to satisfy the API.
+
+```lisp
+;; Hash-table
+(let ((ht (make-hash-table :test 'equal)))
+  (setf (gethash :theme ht) :dark
+        (gethash "language" ht) "en"
+        (gethash 'notifications ht) t)
+  (pantry:create-basket *client* "ht-basket" ht))
+
+;; Plist -> JSON object
+(pantry:create-basket *client* "plist-basket"
+                      '(:theme :dark :language "en" :notifications t))
+
+;; Vector / list wrapped under "value"
+(pantry:create-basket *client* "array-basket" #(1 2 3 4))
+;; Sends {"value": [1,2,3,4]}
+
+(pantry:create-basket *client* "list-basket"  '(:a :b :c))
+;; Sends {"value": ["a","b","c"]}
+
+;; Dotted pair -> single-entry object
+(pantry:create-basket *client* "pair-basket"  '(foo . 42))
+
+;; Nested structures are fine too
+(pantry:create-basket *client* "nested"
+  '((user . ((id . 1) (name . "Ada")))
+    (prefs . (:theme :dark :langs #("en" "fr")))))
 ```
 
 #### Get Basket Contents
@@ -99,11 +139,10 @@ Retrieve data from a basket:
 
 ```lisp
 (pantry:get-basket *client* "user-settings")
-;; Returns:
-;; (("theme" . "dark")
-;;  ("language" . "en")
-;;  ("notifications" . t)
-;;  ("user-id" . 12345))
+;; => a hash-table
+(let ((ht (pantry:get-basket *client* "user-settings")))
+  (multiple-value-bind (theme presentp) (gethash "theme" ht)
+    (when presentp theme)))
 ```
 
 #### Update Basket (Merge)
@@ -113,10 +152,11 @@ Update specific keys in a basket (merges with existing data):
 (pantry:update-basket *client* "user-settings"
                       '(("theme" . "light")
                         ("last-login" . "2023-12-01")))
-;; Returns the merged basket contents
-;;(("last-login" . "2023-12-01") ("user-id" . 12345) ("notifications" . T)
-;;                               ("language" . "en") ("theme" . "light"))
+;; => merged basket contents as a hash-table
 ```
+
+`update-basket` accepts the same flexible inputs as `create-basket`
+and applies the same wrapping rule.
 
 #### Delete Basket
 Remove a basket entirely:
@@ -162,45 +202,25 @@ The library defines custom conditions for error handling:
 - `update-basket (client basket-name data)` - Update basket (merge)
 - `delete-basket (client basket-name)` - Delete a basket
 
+### JSON Normalization Rules
+
+- Object keys are converted to downcased strings (from
+  strings/symbols/keywords/numbers).
+- Hash-tables, alists, plists, and dotted pairs normalize to JSON
+  objects.
+- Vectors and proper lists normalize to JSON arrays.
+- For basket payloads, non-objects are wrapped as `{ "value": ... }`
+  to satisfy the API.
+- Symbols/keywords as values encode as their downcased names;
+  characters as 1-char strings; rationals as floats; pathnames as
+  namestrings; other unknown types are stringified.
+
 ### Conditions
 
 - `pantry-error` - Base error condition
 - `pantry-http-error` - HTTP-specific error with status code
 
-## Example: Simple Key-Value Store
-
-```lisp
-(defparameter *storage* (pantry:make-pantry-client :pantry-id "your-pantry-id"))
-
-;; Inspect the client structure
-(pantry:pantry-client-pantry-id *storage*)     ;; => "your-pantry-id"
-(pantry:pantry-client-base-url *storage*)      ;; => "https://getpantry.cloud/apiv1/pantry"
-
-(defun store-value (key value)
-  "Store a key-value pair"
-  (pantry:create-basket *storage* key (list (cons "value" value)
-                                           (cons "timestamp" (get-universal-time)))))
-
-(defun get-value (key)
-  "Retrieve a value by key"
-  (let ((basket (pantry:get-basket *storage* key)))
-    (cdr (assoc "value" basket :test #'string=))))
-
-;; Usage
-(store-value "user-123-preferences" '(("theme" . "dark") ("lang" . "en")))
-(get-value "user-123-preferences")
-```
 
 ## License
 
 BSD License
-
-## About Pantry
-
-Pantry is a free JSON storage service perfect for:
-- Prototypes and hackathon projects
-- Small personal applications
-- Temporary data storage
-- Configuration management
-
-Data is stored temporarily and expires after periods of inactivity. For production applications, consider using a dedicated database service.
