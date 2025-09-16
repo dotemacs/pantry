@@ -4,29 +4,25 @@ A Common Lisp client library for the [Pantry JSON storage
 service](https://getpantry.cloud), providing simple cloud-based JSON
 storage for small projects and prototypes.
 
-## Example: Simple Key-Value Store
+## Usage
 
-```lisp
-(defparameter *storage* (pantry:make-pantry-client :pantry-id "your-pantry-id"))
+Pantry, the service, has two places to store data:
 
-(defun store-value (key value)
-  (pantry:create-basket *storage* key
-                        `((value . ,value)
-                          (timestamp . ,(get-universal-time)))))
+* `pantry`
+* `baskets`
 
-(defun get-value (key)
-  (let ((ht (pantry:get-basket *storage* key)))
-    (gethash "value" ht)))
+`pantry` can be thought of as a global namespace, where only `name` &
+`description` can be stored.
 
-;; Usage
-(store-value "user-preferences" '((theme . "dark") (lang . "en")))
-(get-value "user-preferences")
-```
+`baskets` are documents for key/values to be stored. This is what you
+should use.
 
 ## Features
 
-- Flexible JSON input: pass alists, plists, hash-tables, lists, or vectors
-- Responses parsed to native types (hash-tables for objects, vectors/lists for arrays)
+- Flexible JSON input: pass alists, plists, hash-tables, lists, or
+  vectors
+- Responses parsed to native types (hash-tables for objects,
+  vectors/lists for arrays)
 
 ## Installation
 
