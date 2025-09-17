@@ -34,9 +34,9 @@
                      (pantry-error-message condition)
                      (pantry-http-error-response-body condition)))))
 
-(defstruct pantry-client
-  "Pantry client structure holding configuration for API requests."
-  pantry-id
+(defstruct (pantry-client
+            (:constructor make-pantry-client (pantry-id)))
+  (pantry-id pantry-id)
   (base-url "https://getpantry.cloud/apiv1/pantry"))
 
 (defun build-url (client &rest path-components)

@@ -1,28 +1,59 @@
 # `pantry`
 
 A Common Lisp client library for the [Pantry JSON storage
-service](https://getpantry.cloud), providing simple cloud-based JSON
-storage for small projects and prototypes.
+service](https://getpantry.cloud).
 
 ## Usage
 
-Pantry, the service, has two places to store data:
+Pantry, stores JSON data in objects which it calls `baskets`.
 
-* `pantry`
-* `baskets`
+You can store JSON data in them like so:
 
-`pantry` can be thought of as a global namespace, where only `name` &
-`description` can be stored.
+```lisp
+CL-USER> (pantry:create-basket *client* "user-settings"
+                      '(("theme" . "dark")
+                        ("language" . "en")
+                        ("notifications" . t)
+                        ("user-id" . 12345)))
+"Your Pantry was updated with basket: user-settings!"
+```
 
-`baskets` are documents for key/values to be stored. This is what you
-should use.
+Or get the data out:
 
-## Features
+```lisp
+(pantry:get-basket *client* "user-settings")
+;; => a hash-table
+```
 
-- Flexible JSON input: pass alists, plists, hash-tables, lists, or
-  vectors
-- Responses parsed to native types (hash-tables for objects,
-  vectors/lists for arrays)
+You can also update your basket:
+
+```lisp
+(pantry:update-basket *client* "user-settings"
+                      '(("theme" . "light")
+                        ("last-login" . "2023-12-01")))
+;; => merged basket contents as a hash-table
+```
+which merges your existing data with the new data.
+
+Or you can delete it:
+
+```lisp
+(pantry:delete-basket *client* "user-settings")
+;; Returns: "user-settings was removed from your Pantry!"
+```
+
+The place where all these baskets sit within Pantry, the service, is
+called pantry, the object, which you can look up:
+
+```lisp
+(gethash "baskets" (pantry:get-pantry-details *client*))
+```
+
+To make it easier to work with data, You can pass many Common Lisp
+data structures and they’ll be converted to JSON automatically. Basket
+payloads must be JSON objects and you pass a non-object (like a list
+or vector), it is wrapped as {"value": ...}  to satisfy the API.
+
 
 ## Installation
 
@@ -58,7 +89,7 @@ Visit [getpantry.cloud](https://getpantry.cloud) to get your free pantry ID.
 ### Creating a Client
 
 ```lisp
-(defparameter *client* (pantry:make-pantry-client :pantry-id "your-pantry-id-here"))
+(defparameter *client* (pantry:make-pantry-client "your-pantry-id-here"))
 ```
 
 ### Pantry Operations
@@ -74,93 +105,45 @@ Get information about your pantry, including available baskets:
   (gethash "baskets" details))
 ```
 
-#### Update Pantry Details
-Update your pantry's name and description:
+### Data structures that you can use
 
+#### Hash-table
 ```lisp
-(pantry:update-pantry-details *client*
-                              :name "My Updated Pantry"
-                              :description "New description")
-```
-
-### Basket Operations
-
-#### Create or Replace Basket
-Store JSON data in a named basket:
-
-```lisp
-CL-USER> (pantry:create-basket *client* "user-settings"
-                      '(("theme" . "dark")
-                        ("language" . "en")
-                        ("notifications" . t)
-                        ("user-id" . 12345)))
-"Your Pantry was updated with basket: user-settings!"
-```
-
-You can now pass many common Lisp shapes and they’ll be normalized to
-JSON automatically. Basket payloads must be JSON objects; if you pass
-a non-object (like a list or vector), it is wrapped as {"value": ...}
-to satisfy the API.
-
-```lisp
-;; Hash-table
 (let ((ht (make-hash-table :test 'equal)))
   (setf (gethash :theme ht) :dark
         (gethash "language" ht) "en"
         (gethash 'notifications ht) t)
   (pantry:create-basket *client* "ht-basket" ht))
+```
 
-;; Plist -> JSON object
+#### Plist -> JSON object
+```lisp
 (pantry:create-basket *client* "plist-basket"
                       '(:theme :dark :language "en" :notifications t))
+```
 
-;; Vector / list wrapped under "value"
+#### Vector / list wrapped under "value"
+```lisp
 (pantry:create-basket *client* "array-basket" #(1 2 3 4))
 ;; Sends {"value": [1,2,3,4]}
 
 (pantry:create-basket *client* "list-basket"  '(:a :b :c))
 ;; Sends {"value": ["a","b","c"]}
+```
 
-;; Dotted pair -> single-entry object
+#### Dotted pair -> single-entry object
+```lisp
 (pantry:create-basket *client* "pair-basket"  '(foo . 42))
+```
 
-;; Nested structures are fine too
+#### Nested structures are fine too
+
+```lisp
 (pantry:create-basket *client* "nested"
   '((user . ((id . 1) (name . "Ada")))
     (prefs . (:theme :dark :langs #("en" "fr")))))
 ```
 
-#### Get Basket Contents
-Retrieve data from a basket:
-
-```lisp
-(pantry:get-basket *client* "user-settings")
-;; => a hash-table
-(let ((ht (pantry:get-basket *client* "user-settings")))
-  (multiple-value-bind (theme presentp) (gethash "theme" ht)
-    (when presentp theme)))
-```
-
-#### Update Basket (Merge)
-Update specific keys in a basket (merges with existing data):
-
-```lisp
-(pantry:update-basket *client* "user-settings"
-                      '(("theme" . "light")
-                        ("last-login" . "2023-12-01")))
-;; => merged basket contents as a hash-table
-```
-
-`update-basket` accepts the same flexible inputs as `create-basket`
-and applies the same wrapping rule.
-
-#### Delete Basket
-Remove a basket entirely:
-
-```lisp
-(pantry:delete-basket *client* "user-settings")
-;; Returns: "user-settings was removed from your Pantry!"
-```
 
 ## Error Handling
 
@@ -184,8 +167,6 @@ The library defines custom conditions for error handling:
 
 ## API Reference
 
-### Structures
-
 - `pantry-client` - Main client structure containing pantry-id and base-url
 
 ### Functions
@@ -197,25 +178,6 @@ The library defines custom conditions for error handling:
 - `get-basket (client basket-name)` - Get basket contents
 - `update-basket (client basket-name data)` - Update basket (merge)
 - `delete-basket (client basket-name)` - Delete a basket
-
-### JSON Normalization Rules
-
-- Object keys are converted to downcased strings (from
-  strings/symbols/keywords/numbers).
-- Hash-tables, alists, plists, and dotted pairs normalize to JSON
-  objects.
-- Vectors and proper lists normalize to JSON arrays.
-- For basket payloads, non-objects are wrapped as `{ "value": ... }`
-  to satisfy the API.
-- Symbols/keywords as values encode as their downcased names;
-  characters as 1-char strings; rationals as floats; pathnames as
-  namestrings; other unknown types are stringified.
-
-### Conditions
-
-- `pantry-error` - Base error condition
-- `pantry-http-error` - HTTP-specific error with status code
-
 
 ## License
 
