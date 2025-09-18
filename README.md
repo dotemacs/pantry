@@ -60,7 +60,7 @@ or vector), it is wrapped as {"value": ...}  to satisfy the API.
 ### 1. Install Dependencies
 
 ```lisp
-(ql:quickload '(:dexador :jonathan))
+(ql:quickload '(:dexador :com.inuoe.jzon))
 ```
 
 ### 2. Load the Library

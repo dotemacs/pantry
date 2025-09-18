@@ -3,5 +3,5 @@
   :author "Aleksandar Simic a@repl.ist"
   :license "BSD"
   :version "0.1.0"
-  :depends-on (:dexador :jonathan)
+  :depends-on (:dexador :com.inuoe.jzon)
   :components ((:file "pantry")))

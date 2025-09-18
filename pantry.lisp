@@ -1,7 +1,7 @@
 (defpackage :pantry
   (:use :cl)
   (:local-nicknames (#:http :dex))
-  (:import-from :jonathan #:to-json #:parse)
+  (:import-from :com.inuoe.jzon #:stringify #:parse)
   (:export #:pantry-client
            #:make-pantry-client
            #:pantry-client-pantry-id
@@ -74,7 +74,7 @@ downcased by name; numbers and others are stringified."
        (every (lambda (x) (and (consp x) (%key-like-p (car x)))) lst)))
 
 (defun normalize-json (value)
-  "Normalize arbitrary Lisp data into a structure that `jonathan:to-json`
+  "Normalize arbitrary Lisp data into a structure that `com.inuoe.jzon:stringify`
 can reliably encode. Supports hash-tables, alists, plists, lists, vectors,
 numbers, strings, booleans, and dotted pairs. Object keys are converted to
 downcased strings. Unknown types are stringified."
@@ -109,7 +109,7 @@ downcased strings. Unknown types are stringified."
                ((%looks-like-plist-p v)
                 (let ((out (make-hash-table :test 'equal)))
                   (loop for (k val) on v by #'cddr do
-                        (setf (gethash (%json-key-string k) out) (norm val)))
+                    (setf (gethash (%json-key-string k) out) (norm val)))
                   out))
                ;; arrays / vectors to JSON array
                ((arrayp v)
@@ -123,7 +123,7 @@ downcased strings. Unknown types are stringified."
 
 (defun content-to-json (content)
   "Convert arbitrary CONTENT into a JSON string using `normalize-json`."
-  (to-json (normalize-json content)))
+  (stringify (normalize-json content)))
 
 (defun ensure-json-object (data)
   "Normalize DATA and ensure a JSON object (hash-table) result. If DATA
@@ -139,11 +139,16 @@ normalizes to a non-object (array or primitive), wrap it as
 (defun parse-json-response (response)
   "Parse JSON response or return as-is if it's already parsed or a string."
   (typecase response
-    (string (if (and (> (length response) 0)
-                     (or (char= (char response 0) #\{)
-                         (char= (char response 0) #\[)))
-                (parse response :as  :hash-table)
-                response))
+    (string (labels ((whitespace-char-p (char)
+                      (member char '(#\Space #\Tab #\Newline #\Return #\Linefeed) :test #'char=)))
+              (let* ((len (length response))
+                     (first-non-ws (position-if-not #'whitespace-char-p response :end len)))
+                (if (and first-non-ws
+                         (let ((char (char response first-non-ws)))
+                           (or (char= char #\{)
+                               (char= char #\[))))
+                    (parse response)
+                    response))))
     (t response)))
 
 (defun make-request (method url &key content)
