@@ -46,7 +46,7 @@ The place where all these baskets sit within Pantry, the service, is
 called pantry, the object, which you can look up:
 
 ```lisp
-(gethash "baskets" (pantry:get-pantry-details *client*))
+(pantry:get-pantry-details *client*)
 ```
 
 To make it easier to work with data, You can pass many Common Lisp
