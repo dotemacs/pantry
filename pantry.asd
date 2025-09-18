@@ -2,6 +2,6 @@
   :description "Common Lisp client for Pantry JSON storage service: https://getpantry.cloud"
   :author "Aleksandar Simic a@repl.ist"
   :license "BSD"
-  :version "0.1.0"
+  :version "0.0.2"
   :depends-on (:dexador :com.inuoe.jzon)
   :components ((:file "pantry")))
